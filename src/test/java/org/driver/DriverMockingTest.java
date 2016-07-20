@@ -16,12 +16,15 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.*;
+import org.mockito.invocation.InvocationOnMock;
 import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.stubbing.Answer;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.List;
 
+import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
@@ -60,6 +63,26 @@ public class DriverMockingTest {
     }
 
     @Test
+    public void loggerIsCalledOnFindErrors() {
+        FindIterable iterable = mock(FindIterable.class);
+        MongoCursor cursor = mock(MongoCursor.class);
+        ObjectId id = new ObjectId();
+        Document bob = new Document("_id", id).append("errors", true);
+
+        when(mockCollection.find(new Document("errors", true))).thenReturn(iterable);
+
+        when(iterable.iterator()).thenReturn(cursor);
+
+        when(cursor.hasNext()).thenReturn(true).thenReturn(false);
+
+        when(cursor.next()).thenReturn(bob);
+
+        for (ObjectId objectId : wrapper.findErrors()) {
+            assertEquals(id, objectId);
+        }
+    }
+
+    @Test
     public void testErrorLoggingUnsupportedOperationExceptionForBulkWrite() {
 
         when(mockCollection.bulkWrite(any(List.class), any(BulkWriteOptions.class))).thenThrow(new UnsupportedOperationException("WriteModel of type MOCKMODEL is not supported"));
@@ -95,25 +118,50 @@ public class DriverMockingTest {
     }
 
     @Test
-    public void loggerIsCalledOnFindErrors() {
+    public void findBobUsingMockCursorBuilder() {
+
+        Document bob = new Document("firstName", "Bob").append("lastName", "Bobberson");
+        new MockCursorBuilder(mockCollection)
+                .withQuery(new Document("lastName", "Bobberson"))
+                .withIteratorHasNext(true, false)
+                .withCursorNext(bob);
+        List<Document> found = wrapper.findByLastName("Bobberson");
+        assertEquals(bob, found.get(0));
+
+    }
+
+    @Test
+    public void findBobUsingMockConfig() {
+        Document bob = new Document("firstName", "Bob").append("lastName", "Bobberson");
+        configBasicCursorMock(asList(bob), asList(true, false), new Document("lastName", "Bobberson"));
+        List<Document> found = wrapper.findByLastName("Bobberson");
+        assertEquals(bob, found.get(0));
+    }
+
+
+    private void configBasicCursorMock(List<Document> documentsToReturn, List<Boolean> hasNextSequence, Document query) {
         FindIterable iterable = mock(FindIterable.class);
         MongoCursor cursor = mock(MongoCursor.class);
-        ObjectId id = new ObjectId();
-        Document bob = new Document("_id", id).append("errors", true);
-
-        when(mockCollection.find(new Document("errors", true))).thenReturn(iterable);
-
+        when(mockCollection.find(query)).thenReturn(iterable);
         when(iterable.iterator()).thenReturn(cursor);
 
-        when(cursor.hasNext()).thenReturn(true).thenReturn(false);
+        when(cursor.hasNext()).thenAnswer(new Answer<Boolean>() {
+            private int count = 0;
 
-        when(cursor.next()).thenReturn(bob);
+            @Override
+            public Boolean answer(InvocationOnMock invocation) throws Throwable {
+                return hasNextSequence.get(count++);
+            }
+        });
 
-        for (ObjectId objectId : wrapper.findErrors()) {
-            assertEquals(id, objectId);
-        }
+        when(cursor.next()).thenAnswer(new Answer<Document>() {
+            private int count = 0;
 
-
+            @Override
+            public Document answer(InvocationOnMock invocation) throws Throwable {
+                return documentsToReturn.get(count++);
+            }
+        });
     }
 
     private void initMockLogger() {
