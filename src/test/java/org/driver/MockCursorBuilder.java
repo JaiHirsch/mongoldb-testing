@@ -7,6 +7,8 @@ import org.bson.Document;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import java.util.concurrent.Callable;
+
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -54,4 +56,39 @@ public class MockCursorBuilder {
         return this;
     }
 
+    public MockCursorBuilder cursorNextGeneric(Document... nextSequence) {
+        return new GenericBuilder<>(this).build(cursor::next, nextSequence);
+    }
+
+    public MockCursorBuilder cursorHasNextGeneric(Boolean... hasNext) {
+        return new GenericBuilder<>(this).build(cursor::hasNext, hasNext);
+    }
+
+    class GenericBuilder<K> {
+
+        private MockCursorBuilder mockBuilder;
+
+        public GenericBuilder(MockCursorBuilder mockBuilder) {
+
+            this.mockBuilder = mockBuilder;
+        }
+
+        public MockCursorBuilder build(Callable<K> invoker, K[] sequence) {
+            try {
+                when(invoker.call()).thenAnswer(new Answer<K>() {
+                    private int count = 0;
+
+                    @Override
+                    public K answer(InvocationOnMock invocation) throws Throwable {
+                        return sequence[count++];
+                    }
+                });
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return mockBuilder;
+        }
+
+
+    }
 }

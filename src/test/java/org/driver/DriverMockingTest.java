@@ -130,6 +130,20 @@ public class DriverMockingTest {
 
     }
 
+
+    @Test
+    public void findBobUsingRefactoredMockCursorBuilder() {
+
+        Document bob = new Document("firstName", "Bob").append("lastName", "Bobberson");
+        new MockCursorBuilder(mockCollection)
+                .withQuery(new Document("lastName", "Bobberson"))
+                .cursorHasNextGeneric(true, false)
+                .cursorNextGeneric(bob);
+        List<Document> found = wrapper.findByLastName("Bobberson");
+        assertEquals(bob, found.get(0));
+
+    }
+
     @Test
     public void findBobUsingMockConfig() {
         Document bob = new Document("firstName", "Bob").append("lastName", "Bobberson");
