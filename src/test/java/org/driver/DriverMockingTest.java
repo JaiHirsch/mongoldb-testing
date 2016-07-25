@@ -12,6 +12,8 @@ import com.mongodb.client.model.BulkWriteOptions;
 import com.mongodb.client.model.InsertOneModel;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.hamcrest.collection.IsIterableContainingInOrder;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -21,6 +23,7 @@ import org.mockito.runners.MockitoJUnitRunner;
 import org.mockito.stubbing.Answer;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -102,20 +105,52 @@ public class DriverMockingTest {
 
         FindIterable iterable = mock(FindIterable.class);
         MongoCursor cursor = mock(MongoCursor.class);
-        Document bob = new Document("firstName", "Bob").append("lastName", "Bobberson");
+        Document bob = new Document("_id", new ObjectId("579397d20c2dd41b9a8a09eb")).append("firstName", "Bob").append("lastName", "Bobberson");
 
         when(mockCollection.find(new Document("lastName", "Bobberson"))).thenReturn(iterable);
-
         when(iterable.iterator()).thenReturn(cursor);
-
         when(cursor.hasNext()).thenReturn(true).thenReturn(false);
-
         when(cursor.next()).thenReturn(bob);
 
         List<Document> found = wrapper.findByLastName("Bobberson");
 
         assertEquals(bob, found.get(0));
     }
+
+    @Test
+    public void findBobUsingInto() {
+
+        FindIterable iterable = mock(FindIterable.class);
+        MongoCursor cursor = mock(MongoCursor.class);
+        Document bob = new Document("_id", new ObjectId("579397d20c2dd41b9a8a09eb")).append("firstName", "Bob").append("lastName", "Bobberson");
+
+        when(mockCollection.find(new Document("lastName", "Bobberson"))).thenReturn(iterable);
+        when(iterable.into(new ArrayList<>())).thenReturn(asList(bob));
+
+        List<Document> found = wrapper.findByLastNameUsingInto("Bobberson");
+
+        assertEquals(bob, found.get(0));
+    }
+
+    @Test
+    public void findBobUsingIntoAndMockBuilder() {
+        Document bob = new Document("_id", new ObjectId("579397d20c2dd41b9a8a09eb")).append("firstName", "Bob").append("lastName", "Bobberson");
+        new MockCursorBuilder(mockCollection).withQuery(new Document("lastName", "Bobberson")).usingInto(bob);
+        assertEquals(bob, wrapper.findByLastNameUsingInto("Bobberson").get(0));
+    }
+
+    @Test
+    public void findMultipleUsers() {
+        Document bob = new Document("_id", new ObjectId()).append("firstName", "Bob").append("lastName", "Bobberson");
+        Document robert = new Document("_id", new ObjectId()).append("firstName", "Robert").append("lastName", "Bobberson");
+        Document joe = new Document("_id", new ObjectId()).append("firstName", "JoeBob").append("lastName", "Bobberson");
+        Document mark = new Document("_id", new ObjectId()).append("firstName", "MarkBob").append("lastName", "Bobberson");
+        new MockCursorBuilder(mockCollection)
+                .withQuery(new Document("lastName", "Bobberson")).usingInto(bob, robert, joe, mark);
+        Assert.assertThat(wrapper.findByLastNameUsingInto("Bobberson"), IsIterableContainingInOrder.contains(bob, robert, joe, mark));
+    }
+
+
 
     @Test
     public void findBobUsingMockCursorBuilder() {
@@ -153,6 +188,9 @@ public class DriverMockingTest {
     }
 
 
+    /**
+     * Example that did not make it into the blog on a phase one of refactoring the test setup.
+     */
     private void configBasicCursorMock(List<Document> documentsToReturn, List<Boolean> hasNextSequence, Document query) {
         FindIterable iterable = mock(FindIterable.class);
         MongoCursor cursor = mock(MongoCursor.class);

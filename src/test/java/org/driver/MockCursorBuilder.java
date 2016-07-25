@@ -7,8 +7,10 @@ import org.bson.Document;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import java.util.ArrayList;
 import java.util.concurrent.Callable;
 
+import static java.util.Arrays.asList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -56,6 +58,11 @@ public class MockCursorBuilder {
         return this;
     }
 
+    public MockCursorBuilder usingInto(Document... documents) {
+        when(iterable.into(new ArrayList<>())).thenReturn(asList(documents));
+        return this;
+    }
+
     public MockCursorBuilder cursorNextGeneric(Document... nextSequence) {
         return new GenericBuilder<>(this).build(cursor::next, nextSequence);
     }
@@ -65,11 +72,9 @@ public class MockCursorBuilder {
     }
 
     class GenericBuilder<K> {
-
         private MockCursorBuilder mockBuilder;
 
         public GenericBuilder(MockCursorBuilder mockBuilder) {
-
             this.mockBuilder = mockBuilder;
         }
 
@@ -77,7 +82,6 @@ public class MockCursorBuilder {
             try {
                 when(invoker.call()).thenAnswer(new Answer<K>() {
                     private int count = 0;
-
                     @Override
                     public K answer(InvocationOnMock invocation) throws Throwable {
                         return sequence[count++];
